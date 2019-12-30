@@ -37,14 +37,18 @@ Disadvantages:
 •	With Photoshop, the simple act of saving the picture can auto-sharpen textures and edges, creating a higher error level potential. This artifact does not identify intentional modification; it identifies that an Adobe product was used. (Remember: if someone needs to download a picture from their camera or resize a picture for the web, they are just as likely to reach for Photoshop as they are to use any other tool.) Technically, ELA appears as a modification because Adobe automatically performed a modification, but the modification was not necessarily intentional by the user.
 
 •	As mentioned above, rainbowing is not exclusive to Photoshop. The open source GIMP drawing program may introduce a little rainbowing and some high quality photos may contain rainbowing.
+
 •	NOTE: ELA is only one algorithm. The interpretation of results may be inconclusive. It is important to validate findings with other analysis techniques and algorithms.
 
 Step 3:  Calculating Luminosity of RGB channel of Entire image
 Here the luminosity i.e. The intensity of Red green and blue of all the pixels in the entire image is calculated. Here entire image is iterated and maximum value is retrieved from the RGB vectors of Image.
+
 Step 4: Performing 2-D Adaptive Noise - removal Filtering
 wiener2 lowpass filters an intensity image that has been degraded by constant power additive noise. wiener2 uses a pixel-wise adaptive Wiener method based on statistics estimated from a local neighbourhood of each pixel.
+
 Step 5: Creating Morphological Structuring Element and recreating morphological image using ‘bothat’ and ‘tophat’
 operations
+
 Syntax:
 SE = strel(shape,parameters)
 Description:
