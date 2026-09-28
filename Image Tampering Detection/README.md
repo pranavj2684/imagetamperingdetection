@@ -91,59 +91,106 @@ produce elevated ELA values without any tampering.
 
 ## Multi-agent development workflow
 
-Several of the changes above weren't designed solo — before implementing a
-nontrivial pipeline change, this project routes the proposed approach
-through specialized reviewer agents first, and only implements after (or
-while incorporating) their pushback. Two roles recur:
+This project is developed with a fixed roster of six specialized agents
+(`.claude/agents/*.md`), each scoped to one concern, with explicit
+boundaries about what it hands off to another agent rather than doing
+itself. All six share the same project-context brief (pipeline stages,
+file layout, run commands) plus their own domain-specific "hard-won
+lessons" section, so a fresh invocation doesn't re-litigate settled
+calibration decisions from first principles.
 
-- **Classical image-forensics reviewer** — a persona briefed on the exact
-  pipeline code and a specific proposed change, asked to critique it from a
-  signal-processing/forensics standpoint: is the technique sound at the
-  image sizes actually in play, what's the false-positive mode, is there a
-  simpler/more reliable classical alternative.
-- **Deep-learning/CV reviewer** — the same briefing, but asked whether a
-  pretrained model would do better, what its training-data blind spots
-  are, and whether model integration is worth the effort versus a classical
-  fix.
+### The six agents
 
-Both are run **in parallel, independently** (neither sees the other's
-answer), specifically so their agreement or disagreement is informative
-rather than one reviewer anchoring on the other. Concretely, this caught:
+| Agent | Model | Tools | Role |
+|---|---|---|---|
+| `planner` | opus | read-only + web | Turns a feature/refactor/migration request into an ordered, file-specific implementation plan. Never edits code. |
+| `feature-builder` | sonnet | read/write/edit | Implements a given plan or direct request — endpoints, pipeline stages, UI components. Writes code; doesn't do open-ended design. |
+| `bug-fixer` | sonnet | read/edit + bash | Takes a reported symptom (wrong score, API error, UI glitch), root-causes it, and applies the minimal fix. Not for new features. |
+| `tester` | sonnet | read + bash + write (scripts only) | Writes and runs verification scripts, reports pass/fail with actual numbers. Never fixes what it finds — hands findings to `bug-fixer`. |
+| `cv-expert` | opus | read-only + web | Deep classical image-processing/OpenCV authority — ELA, morphology, frequency-domain methods, denoising, algorithm selection for a given tampering signature. Defers model/training questions to `ml-expert`. |
+| `ml-expert` | opus | read-only + web | Deep neural-network/pretrained-model authority — which architecture fits which forensic task (ManTraNet, PSCC-Net, CAT-Net, Noiseprint, diffusion-detector CNNs), integration strategy, dataset/training reality-checks. Defers classical pixel/frequency methods to `cv-expert`. |
 
-- **Rejecting single-image PRNU outright** — both reviewers independently
+`planner`, `bug-fixer`, `tester`, and `feature-builder` all read/write only
+(no `WebFetch`/`WebSearch`) — their job is reasoning about *this* codebase.
+`cv-expert` and `ml-expert` are read-only over the codebase but have
+`WebFetch`/`WebSearch`, because their job is bringing outside domain
+knowledge (published techniques, model landscape) to bear on it — neither
+can edit `app/` directly; a decision they reach still goes through
+`feature-builder` to land in code.
+
+### What each one actually knows (baked into its own file, not re-derived per run)
+
+- **`planner`** carries the project's calibration history as constraints on
+  any new plan: ELA must run at native resolution (never downscale pixels —
+  only thresholds scale, via `scale_factor = max(image_dims) / REFERENCE_DIMENSION`);
+  local-ring comparison, not global-mean; a floored ratio denominator; the
+  `--reload` requirement on uvicorn. A plan that would reintroduce any of
+  these is something `planner` is briefed to catch before `feature-builder`
+  ever sees it.
+- **`feature-builder`** carries the same constraints as house rules for
+  writing code — no comments beyond non-obvious WHY, no scope creep, verify
+  with a synthetic-image sanity check before reporting done, and flag (not
+  silently revert) if a request conflicts with existing false-positive
+  tuning.
+- **`bug-fixer`** carries a numbered history of every tamper-score bug this
+  project has already hit and fixed once (global-mean comparison, ratio
+  explosion near zero, resolution-dependent thresholds, pixel downscaling,
+  bounding-box mean dilution) — so a new bug report gets matched against
+  that list before any constant gets changed blindly.
+- **`tester`** carries the specific test-methodology mistakes already made
+  in this project — hand-drawn hard-edged rectangles fake a false-positive
+  signal that isn't the pipeline's fault; numpy smooth-gradient + Gaussian
+  blur synthetic images are the real regression fixture, run at both ~500px
+  and ~3000px, both untampered and spliced.
+- **`cv-expert`** carries the classical-forensics technique catalog this
+  project draws on when evaluating a new channel: noise-level analysis,
+  CFA/demosaicing artifacts, JPEG double-compression analysis, PRNU,
+  copy-move via SIFT/ORB+RANSAC, illumination/shadow-inconsistency
+  detection — plus the explicit acknowledgment that ELA + Tophat/Bothat is
+  structurally edge-sensitive, not tamper-specific, and that's a known
+  limitation, not a bug to keep chasing.
+- **`ml-expert`** carries the actual published model landscape by name —
+  ManTraNet, PSCC-Net, CAT-Net/RGB-N, MVSS-Net, Noiseprint/Noiseprint++,
+  diffusion/GAN-fingerprint CNN detectors — and the practical constraints
+  that matter for this project specifically: no labeled dataset exists
+  in-repo, no GPU infrastructure, so pretrained/zero-shot is the only
+  realistic near-term option.
+
+### How this played out on real changes
+
+Before implementing a nontrivial pipeline change, the proposed approach is
+routed through `cv-expert` and `ml-expert` **in parallel, independently**
+(neither sees the other's answer), specifically so agreement or
+disagreement between them is informative rather than one anchoring on the
+other. Concretely, this caught:
+
+- **Rejecting single-image PRNU outright** — both agents independently
   identified that a no-reference, single-frame PRNU check isn't sound
   forensics (real PRNU needs a multi-image camera fingerprint to cancel
   scene content), before any code was written.
-- **The bidirectional-detection blind spot** — the classical reviewer
-  traced it to a specific inconsistency already in the codebase (the ELA
-  channel already combined tophat+blackhat "regardless of polarity"; the
-  newer sharpness/noise channels didn't), pinpointing the fix before
+- **The bidirectional-detection blind spot** — `cv-expert` traced it to a
+  specific inconsistency already in the codebase (the ELA channel already
+  combined tophat+blackhat "regardless of polarity"; the newer
+  sharpness/noise channels didn't), pinpointing the fix before
   implementation.
 - **Deprioritizing a pretrained model (PSCC-Net) in favor of two classical
-  fixes** — the DL reviewer argued against its own earlier recommendation
-  once two concrete real-world failures came in, on the grounds that both
-  were architecture bugs (wrong-polarity detectors, no cross-channel
+  fixes** — `ml-expert` argued against its own earlier recommendation once
+  two concrete real-world failures came in, on the grounds that both were
+  architecture bugs (wrong-polarity detectors, no cross-channel
   corroboration) rather than missing model capability, and that forgery
   localization training sets don't clearly cover either failure mode either.
-- **The bokeh false-positive** — *not* caught by review (both reviewers
-  signed off on the bidirectional-detection design); caught by testing the
-  implementation against a real photo afterward, which is why every change
-  in this project is verified against saved real test images before being
-  called done, not just against the reviewers' sign-off.
+- **The bokeh false-positive** — *not* caught by review (both agents signed
+  off on the bidirectional-detection design); caught by testing the
+  implementation against a real photo afterward. This is exactly the gap
+  `tester`'s role exists to close, and why no change in this project is
+  called done on review sign-off alone.
 
-A third role — a **research agent** — was used earlier and separately, to
-survey current open-source forgery-localization models (TruFor, CAT-Net,
-PSCC-Net, IML-ViT, MantraNet), classical diffusion-artifact techniques
-(PRNU, FFT/radial-spectrum), and C2PA tooling maturity, feeding the options
-the two reviewer roles above then argued over.
-
-The pattern in short: **propose → two independent adversarial reviews →
-implement → test against real saved images → report both what worked and
-what didn't**, rather than treating a reviewed design as validated until a
-real image proves it. Several sections above (bidirectional detection,
-cross-channel corroboration, the resampling-artifact limitation) are
-written the way they are because that last step caught something the
-review step didn't.
+The pattern in short: **`planner`/direct request → `cv-expert` + `ml-expert`
+independent review → `feature-builder` implements → `tester`-style
+verification against real saved images → `bug-fixer` if something's still
+wrong**. Several sections above (bidirectional detection, cross-channel
+corroboration, the resampling-artifact limitation) are written the way they
+are because the verification step caught something the review step didn't.
 
 ### Known limitations (surfaced to the user as warnings)
 
