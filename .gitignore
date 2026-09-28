@@ -45,3 +45,11 @@ Image Tampering Detection/terraform/*.tfstate.*
 Image Tampering Detection/terraform/*.tfvars
 Image Tampering Detection/terraform/crash.log
 Image Tampering Detection/terraform/crash.*.log
+Image Tampering Detection/backend/app/__pycache__/*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+Image Tampering Detection/backend/results/*
+!Image Tampering Detection/backend/results/.gitkeep

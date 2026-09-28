@@ -1,68 +1,84 @@
+@import "tailwindcss";
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  color-scheme: dark;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  /* Material-ish tonal surface scale, dark theme */
+  --surface: #0d0f13;
+  --surface-container-low: #131519;
+  --surface-container: #17191f;
+  --surface-container-high: #1e2129;
+  --surface-container-highest: #262a33;
+  --outline: #33363f;
+  --outline-variant: #24272e;
+  --on-surface: #e4e2e6;
+  --on-surface-variant: #9a9da6;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --primary: #a9c7ff;
+  --on-primary: #04305c;
+  --primary-container: #1c4a80;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+* {
+  border-color: var(--outline-variant);
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
   min-height: 100vh;
+  background-color: var(--surface);
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(169, 199, 255, 0.07), transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(169, 199, 255, 0.05), transparent 40%);
+  background-attachment: fixed;
+  color: var(--on-surface);
+  font-family: 'Roboto', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+.font-mono-data {
+  font-family: 'Roboto Mono', ui-monospace, monospace;
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+.animate-fade-in-up {
+  animation: fade-in-up 0.35s ease-out both;
+}
+
+@keyframes dash-progress {
+  0% {
+    stroke-dashoffset: 220;
   }
-  a:hover {
-    color: #747bff;
+  50% {
+    stroke-dashoffset: 55;
   }
-  button {
-    background-color: #f9f9f9;
+  100% {
+    stroke-dashoffset: 220;
   }
+}
+
+.animate-scan-ring {
+  animation: dash-progress 1.6s ease-in-out infinite;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--outline);
+  border-radius: 999px;
 }
